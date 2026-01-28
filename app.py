@@ -17,7 +17,7 @@ st.markdown("""
     .stTextInput input { color: #121212 !important; background-color: white !important; border-radius: 8px !important; }
     section[data-testid="stSidebar"] { background-color: #f1f5f9 !important; }
     section[data-testid="stSidebar"] * { color: #121212 !important; }
-    .metric-card { background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .metric-card { background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 10px; }
     .metric-value { font-size: 1.2rem; font-weight: bold; color: white !important; }
     div.stLinkButton > a { background-color: #003366 !important; color: white !important; border: 1px solid #3b82f6 !important; border-radius: 8px !important; font-weight: bold !important; }
     div.stLinkButton > a:hover { background-color: #000000 !important; border-color: #ffffff !important; }
@@ -37,13 +37,23 @@ opts = { "AVWAP": st.sidebar.toggle("AVWAP", value=True), "SMA 200": st.sidebar.
 @st.cache_data(ttl=600)
 def load_data(symbol):
     try:
+        # שימוש ב-download במקום history כדי לעקוף חסימות שרת
+        df = yf.download(symbol, period="max", progress=False)
         s = yf.Ticker(symbol)
-        return s.history(period="max"), s.info
-    except: return pd.DataFrame(), {}
+        # אם ה-Download החזיר MultiIndex (קורה לפעמים בגרסאות חדשות), ננקה אותו
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        return df, s.info
+    except Exception as e:
+        return pd.DataFrame(), {}
 
 data, info = load_data(ticker)
 
-if not data.empty:
+if not data.empty and len(data) > 0:
+    # וידוא שהנתונים הם מסוג float
+    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+        data[col] = pd.to_numeric(data[col], errors='coerce')
+    
     data['SMA200'] = data['Close'].rolling(200).mean()
     data['SMA50'] = data['Close'].rolling(50).mean()
     data['SMA20'] = data['Close'].rolling(20).mean()
@@ -70,14 +80,25 @@ if not data.empty:
     vol_colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(data['Close'], data['Open'])]
     fig.add_trace(go.Bar(x=data.index, y=data['Volume'], marker_color=vol_colors, name='Volume'), row=2, col=1)
 
-    fig.update_xaxes(gridcolor='#1e293b', tickfont=dict(color="white"), range=[start_date, end_date], rangeselector=dict(buttons=list([dict(count=5, label="5D", step="day", stepmode="backward"), dict(count=1, label="1M", step="month", stepmode="backward"), dict(count=3, label="3M", step="month", stepmode="backward"), dict(count=6, label="6M", step="month", stepmode="backward"), dict(count=1, label="YTD", step="year", stepmode="todate"), dict(count=1, label="1Y", step="year", stepmode="backward"), dict(step="all", label="MAX")]), bgcolor="#0f172a", activecolor="#3b82f6", font=dict(color="white")))
-    fig.update_layout(height=650, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#000000', xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=10, b=10), hovermode="x unified", legend=dict(font=dict(color="white", size=11)), font=dict(color="white"))
+    fig.update_xaxes(gridcolor='#1e293b', tickfont=dict(color="white"), range=[start_date, end_date], 
+                     rangeselector=dict(buttons=list([dict(count=5, label="5D", step="day", stepmode="backward"), 
+                                                     dict(count=1, label="1M", step="month", stepmode="backward"), 
+                                                     dict(count=3, label="3M", step="month", stepmode="backward"), 
+                                                     dict(count=6, label="6M", step="month", stepmode="backward"), 
+                                                     dict(count=1, label="YTD", step="year", stepmode="todate"), 
+                                                     dict(count=1, label="1Y", step="year", stepmode="backward"), 
+                                                     dict(step="all", label="MAX")]), 
+                                        bgcolor="#0f172a", activecolor="#3b82f6", font=dict(color="white")))
+    
+    fig.update_layout(height=650, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='#000000', xaxis_rangeslider_visible=False, 
+                      margin=dict(l=10, r=10, t=10, b=10), hovermode="x unified", 
+                      legend=dict(font=dict(color="white", size=11)), font=dict(color="white"))
     fig.update_yaxes(gridcolor='#1e293b', tickfont=dict(color="white"))
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Price</div><div class="metric-value">{data["Close"].iloc[-1]:.2f}$</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Price</div><div class="metric-value">{float(data["Close"].iloc[-1]):.2f}$</div></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">P/E Ratio</div><div class="metric-value">{fmt(info.get("trailingPE"))}</div></div>', unsafe_allow_html=True)
     with c2:
         st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Market Cap</div><div class="metric-value">{fmt(info.get("marketCap",0)/1e9)}B</div></div>', unsafe_allow_html=True)
@@ -92,4 +113,4 @@ if not data.empty:
     st.markdown("#### 🏢 About Company")
     st.markdown(f'<div class="company-info-box">{info.get("longBusinessSummary", "No description available.")}</div>', unsafe_allow_html=True)
 else:
-    st.error("No data found.")
+    st.error(f"No data found for {ticker}. Please try again in a few moments or check the ticker symbol.")
