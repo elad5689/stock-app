@@ -41,6 +41,7 @@ opts = {
     "SMA 20": st.sidebar.toggle("SMA 20", value=True),
     "SMA 9": st.sidebar.toggle("SMA 9", value=True),
     "EMA 20": st.sidebar.toggle("EMA 20", value=True),
+    "EMA 5": st.sidebar.toggle("EMA 5 (Blue)", value=True), # הוספת הלחצן
     "AVWAP": st.sidebar.toggle("AVWAP", value=True)
 }
 
@@ -48,7 +49,7 @@ opts = {
 def load_data(symbol):
     try:
         t = yf.Ticker(symbol)
-        df = t.history(period="2y") # טעינת שנתיים כדי שיהיה מספיק נתונים ל-SMA200
+        df = t.history(period="2y")
         if df.empty:
             df = yf.download(symbol, period="2y", progress=False)
         return df, t.info
@@ -64,14 +65,23 @@ if not data.empty and len(data) > 0:
     data['SMA20'] = data['Close'].rolling(20).mean()
     data['SMA9'] = data['Close'].rolling(9).mean()
     data['EMA20'] = data['Close'].ewm(span=20, adjust=False).mean()
+    data['EMA5'] = data['Close'].ewm(span=5, adjust=False).mean() # חישוב EMA 5
 
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])
     
     # נרות יפניים
     fig.add_trace(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Price'), row=1, col=1)
     
-    # אינדיקטורים - הוספתי SMA 9 בכחול
-    colors = {'SMA200': '#ff1744', 'SMA50': '#00e676', 'SMA20': '#ff9100', 'SMA9': '#2979ff', 'EMA20': '#00e5ff'}
+    # אינדיקטורים - צבעים (EMA 5 בכחול)
+    colors = {
+        'SMA200': '#ff1744', 
+        'SMA50': '#00e676', 
+        'SMA20': '#ff9100', 
+        'SMA9': '#ffeb3b', # שיניתי את SMA 9 לצהוב/לבן כדי שהכחול יהיה בלעדי ל-EMA 5
+        'EMA20': '#00e5ff',
+        'EMA5': '#2979ff'   # כחול ל-EMA 5
+    }
+
     for ma in colors:
         label = ma.replace("SMA", "SMA ").replace("EMA", "EMA ")
         if opts.get(label):
@@ -82,13 +92,13 @@ if not data.empty and len(data) > 0:
         anchor = data.tail(120)['High'].idxmax()
         v_data = data[data.index >= anchor].copy()
         v_data['AVWAP'] = (((v_data['High']+v_data['Low']+v_data['Close'])/3) * v_data['Volume']).cumsum() / v_data['Volume'].cumsum()
-        fig.add_trace(go.Scatter(x=v_data.index, y=v_data['AVWAP'], line=dict(color='#ffff00', width=2, dash='dot'), name='AVWAP'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=v_data.index, y=v_data['AVWAP'], line=dict(color='#ffffff', width=2, dash='dot'), name='AVWAP'), row=1, col=1)
 
     # ווליום
     vol_colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(data['Close'], data['Open'])]
     fig.add_trace(go.Bar(x=data.index, y=data['Volume'], marker_color=vol_colors, name='Volume'), row=2, col=1)
 
-    # --- הוספת טווחי זמן (מה שביקשת) ---
+    # טווחי זמן
     fig.update_xaxes(
         gridcolor='#1e293b',
         rangeselector=dict(
@@ -103,7 +113,7 @@ if not data.empty and len(data) > 0:
         )
     )
 
-    # תצוגה ראשונית ל-3 חודשים
+    # תצוגה ראשונית
     end_date = data.index[-1]
     start_date = end_date - timedelta(days=90)
     fig.update_xaxes(range=[start_date, end_date], xaxis_rangeslider_visible=False)
