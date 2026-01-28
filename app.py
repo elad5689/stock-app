@@ -3,12 +3,11 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from googletrans import Translator
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Stock Pro Executive", layout="wide", initial_sidebar_state="collapsed")
 
-# CSS - עיצוב הבר העליון, כפתור Fintel וניקוי ממשק
+# CSS 
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(180deg, #0a192f 0%, #000000 100%); color: white; }
@@ -22,23 +21,17 @@ st.markdown("""
     .metric-value { font-size: 1.2rem; font-weight: bold; color: white !important; }
     div.stLinkButton > a { background-color: #003366 !important; color: white !important; border: 1px solid #3b82f6 !important; border-radius: 8px !important; font-weight: bold !important; }
     div.stLinkButton > a:hover { background-color: #000000 !important; border-color: #ffffff !important; }
-    .company-info-box { background-color: rgba(255, 255, 255, 0.03); padding: 20px; border-radius: 12px; color: #e2e8f0; direction: rtl; text-align: right; border-right: 4px solid #3b82f6; line-height: 1.8; }
+    .company-info-box { background-color: rgba(255, 255, 255, 0.03); padding: 20px; border-radius: 12px; color: #e2e8f0; direction: ltr; text-align: left; border-left: 4px solid #3b82f6; line-height: 1.8; }
     </style>
     """, unsafe_allow_html=True)
-
-@st.cache_data(ttl=3600)
-def translate_text(text):
-    if not text: return "אין תיאור זמין."
-    try: return Translator().translate(text, dest='he').text
-    except: return text
 
 def fmt(val, is_pct=False):
     if val is None or isinstance(val, str) or val == 0: return "N/A"
     return f"{val * 100:.1f}%" if is_pct else f"{val:,.1f}"
 
-ticker = st.text_input("", value="IREN", placeholder="הזן סימול מניה...").upper().strip()
+ticker = st.text_input("", value="IREN", placeholder="Enter Ticker...").upper().strip()
 
-st.sidebar.title("אינדיקטורים")
+st.sidebar.title("Indicators")
 opts = { "AVWAP": st.sidebar.toggle("AVWAP", value=True), "SMA 200": st.sidebar.toggle("SMA 200", value=True), "SMA 50": st.sidebar.toggle("SMA 50", value=True), "SMA 20": st.sidebar.toggle("SMA 20", value=True), "EMA 20": st.sidebar.toggle("EMA 20", value=True), "EMA 5": st.sidebar.toggle("EMA 5", value=True) }
 
 @st.cache_data(ttl=600)
@@ -84,21 +77,19 @@ if not data.empty:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">מחיר</div><div class="metric-value">{data["Close"].iloc[-1]:.2f}$</div></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">מכפיל P/E</div><div class="metric-value">{fmt(info.get("trailingPE"))}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Price</div><div class="metric-value">{data["Close"].iloc[-1]:.2f}$</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">P/E Ratio</div><div class="metric-value">{fmt(info.get("trailingPE"))}</div></div>', unsafe_allow_html=True)
     with c2:
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">שווי שוק</div><div class="metric-value">{fmt(info.get("marketCap",0)/1e9)}B</div></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">מכפיל P/S</div><div class="metric-value">{fmt(info.get("priceToSalesTrailing12Months"))}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Market Cap</div><div class="metric-value">{fmt(info.get("marketCap",0)/1e9)}B</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">P/S Ratio</div><div class="metric-value">{fmt(info.get("priceToSalesTrailing12Months"))}</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">מחיר יעד (1Y)</div><div class="metric-value">{fmt(info.get("targetMeanPrice"))}$</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Target Price</div><div class="metric-value">{fmt(info.get("targetMeanPrice"))}$</div></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Short %</div><div class="metric-value" style="color:#ff4b4b;">{fmt(info.get("shortPercentOfFloat"), True)}</div></div>', unsafe_allow_html=True)
 
     st.write("")
     st.link_button(f"🔍 Open Fintel", f"https://fintel.io/so/us/{ticker.lower()}", use_container_width=True)
     st.write("---")
-    st.markdown("#### 🏢 אודות החברה")
-    with st.spinner('מתרגם...'):
-        heb_desc = translate_text(info.get('longBusinessSummary', ''))
-        st.markdown(f'<div class="company-info-box">{heb_desc}</div>', unsafe_allow_html=True)
+    st.markdown("#### 🏢 About Company")
+    st.markdown(f'<div class="company-info-box">{info.get("longBusinessSummary", "No description available.")}</div>', unsafe_allow_html=True)
 else:
-    st.error("לא נמצאו נתונים.")
+    st.error("No data found.")
