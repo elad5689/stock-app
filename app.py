@@ -53,7 +53,6 @@ def load_data(symbol):
 
 data, info = load_data(ticker)
 
-# בדיקה קריטית: האם יש מספיק נתונים?
 if not data.empty and len(data) > 10:
     try:
         # חישובים
@@ -82,13 +81,12 @@ if not data.empty and len(data) > 10:
         vol_colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(data['Close'], data['Open'])]
         fig.add_trace(go.Bar(x=data.index, y=data['Volume'], marker_color=vol_colors, name='Volume'), row=2, col=1)
 
-        # תיקון ה-Range: מוודא שהערכים קיימים לפני העדכון
         last_date = data.index[-1]
         start_view = last_date - timedelta(days=90)
         
         fig.update_xaxes(
             gridcolor='#1e293b',
-            range=[start_view, last_date], # הגדרת הטווח בתוך ה-update_xaxes בצורה בטוחה
+            range=[start_view, last_date],
             rangeselector=dict(
                 buttons=list([
                     dict(count=1, label="1M", step="month", stepmode="backward"),
@@ -98,10 +96,21 @@ if not data.empty and len(data) > 10:
                     dict(step="all", label="MAX")
                 ]),
                 bgcolor="#0f172a", activecolor="#3b82f6", font=dict(color="white")
-            )
+            ),
+            tickfont=dict(color="white") # טקסט ציר זמן בלבן
         )
 
-        fig.update_layout(height=700, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+        fig.update_yaxes(gridcolor='#1e293b', tickfont=dict(color="white")) # טקסט ציר מחיר בלבן
+
+        fig.update_layout(
+            height=700, 
+            template="plotly_dark", 
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            xaxis_rangeslider_visible=False,
+            legend=dict(font=dict(color="white")), # <--- שינוי צבע טקסט המקרא ללבן
+            font=dict(color="white") # <--- שינוי צבע פונט כללי בגרף ללבן
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         # מטריקות
