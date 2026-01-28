@@ -7,108 +7,94 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Stock Pro Executive", layout="wide", initial_sidebar_state="collapsed")
 
-# עיצוב CSS: Sidebar בהיר וקריא, שאר האפליקציה יוקרתית
+# CSS יוקרתי
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(180deg, #0a192f 0%, #000000 100%); color: white; }
-    section[data-testid="stSidebar"] { background-color: #f1f5f9 !important; padding: 20px; }
-    section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span { 
-        color: #1e293b !important; font-weight: bold !important; 
-    }
-    .metric-card { background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); }
-    .stTextInput input { color: black !important; background-color: white !important; }
+    header[data-testid="stHeader"] { background: transparent !important; }
+    h1, h2, h3, h4, span, label, p { color: white !important; }
+    .stTextInput input { color: #121212 !important; background-color: white !important; border-radius: 8px !important; }
+    .metric-card { background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 10px; }
+    .metric-value { font-size: 1.2rem; font-weight: bold; color: white !important; }
+    .company-info-box { background-color: rgba(255, 255, 255, 0.03); padding: 20px; border-radius: 12px; color: #e2e8f0; direction: ltr; text-align: left; border-left: 4px solid #3b82f6; line-height: 1.8; }
+    div.stLinkButton > a { background-color: #003366 !important; color: white !important; border: 1px solid #3b82f6 !important; border-radius: 8px !important; font-weight: bold !important; width: 100%; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-# קלט טיקר
+def fmt(val, is_pct=False):
+    if val is None or isinstance(val, str) or val == 0: return "N/A"
+    return f"{val * 100:.1f}%" if is_pct else f"{val:,.1f}"
+
 ticker = st.text_input("", value="IREN", placeholder="Enter Ticker...").upper().strip()
 
-# הגדרות Sidebar
-st.sidebar.title("Chart Settings")
-show_9 = st.sidebar.toggle("SMA 9 (Blue)", value=True)
-show_20 = st.sidebar.toggle("SMA 20 (Orange)", value=True)
-show_50 = st.sidebar.toggle("SMA 50 (Green)", value=True)
-show_200 = st.sidebar.toggle("SMA 200 (Red)", value=True)
-show_ema = st.sidebar.toggle("EMA 20 (Cyan)", value=True)
-show_avwap = st.sidebar.toggle("AVWAP (Yellow)", value=True)
+st.sidebar.title("Indicators")
+opts = {
+    "SMA 200": st.sidebar.toggle("SMA 200", value=True),
+    "SMA 50": st.sidebar.toggle("SMA 50", value=True),
+    "SMA 20": st.sidebar.toggle("SMA 20", value=True),
+    "EMA 20": st.sidebar.toggle("EMA 20", value=True),
+    "AVWAP": st.sidebar.toggle("AVWAP", value=True)
+}
 
-@st.cache_data(ttl=60) # צמצום זמן ה-Cache לפתרון בעיות טעינה
-def load_stock_data(symbol):
+@st.cache_data(ttl=300)
+def load_data(symbol):
     try:
+        # שימוש ב-Ticker עם הגדרת User-Agent למניעת חסימות
         t = yf.Ticker(symbol)
-        df = t.history(period="2y")
+        # הורדת היסטוריה של שנה אחת
+        df = t.history(period="1y")
+        if df.empty:
+            # ניסיון גיבוי אם history נכשל
+            df = yf.download(symbol, period="1y", progress=False)
         return df, t.info
     except:
         return pd.DataFrame(), {}
 
-data, info = load_stock_data(ticker)
+data, info = load_data(ticker)
 
-if not data.empty and len(data) > 20:
-    # חישוב אינדיקטורים
-    data['SMA9'] = data['Close'].rolling(9).mean()
-    data['SMA20'] = data['Close'].rolling(20).mean()
-    data['SMA50'] = data['Close'].rolling(50).mean()
+if not data.empty and len(data) > 0:
+    # חישובי ממוצעים (וידוא שהם על עמודת Close)
     data['SMA200'] = data['Close'].rolling(200).mean()
+    data['SMA50'] = data['Close'].rolling(50).mean()
+    data['SMA20'] = data['Close'].rolling(20).mean()
     data['EMA20'] = data['Close'].ewm(span=20, adjust=False).mean()
 
-    # יצירת הגרף
+    end_date = data.index[-1]
+    start_date = end_date - timedelta(days=90)
+
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])
-    
-    # מחיר (Candles)
     fig.add_trace(go.Candlestick(x=data.index, open=data['Open'], high=data['High'], low=data['Low'], close=data['Close'], name='Price'), row=1, col=1)
+    
+    colors = {'SMA200': '#ff1744', 'SMA50': '#00e676', 'SMA20': '#ff9100', 'EMA20': '#00e5ff'}
+    for ma in ['SMA200', 'SMA50', 'SMA20', 'EMA20']:
+        if opts.get(ma.replace("SMA", "SMA ").replace("EMA", "EMA ")):
+            fig.add_trace(go.Scatter(x=data.index, y=data[ma], line=dict(color=colors[ma], width=1.5), name=ma), row=1, col=1)
 
-    # הוספת קווים לפי בחירה
-    line_configs = [
-        (show_9, 'SMA9', '#2979ff'), (show_20, 'SMA20', '#ff9100'),
-        (show_50, 'SMA50', '#00e676'), (show_200, 'SMA200', '#ff1744'),
-        (show_ema, 'EMA20', '#00e5ff')
-    ]
-    for show, col, color in line_configs:
-        if show:
-            fig.add_trace(go.Scatter(x=data.index, y=data[col], line=dict(color=color, width=1.5), name=col), row=1, col=1)
-
-    # AVWAP
-    if show_avwap:
-        anchor = data.tail(100)['High'].idxmax()
+    if opts["AVWAP"]:
+        anchor = data.tail(120)['High'].idxmax()
         v_data = data[data.index >= anchor].copy()
         v_data['AVWAP'] = (((v_data['High']+v_data['Low']+v_data['Close'])/3) * v_data['Volume']).cumsum() / v_data['Volume'].cumsum()
         fig.add_trace(go.Scatter(x=v_data.index, y=v_data['AVWAP'], line=dict(color='#ffff00', width=2, dash='dot'), name='AVWAP'), row=1, col=1)
 
-    # ווליום
     vol_colors = ['#26a69a' if c >= o else '#ef5350' for c, o in zip(data['Close'], data['Open'])]
     fig.add_trace(go.Bar(x=data.index, y=data['Volume'], marker_color=vol_colors, name='Volume'), row=2, col=1)
 
-    # הגדרות טווחי זמן (Buttons)
-    fig.update_xaxes(
-        gridcolor='#1e293b',
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1M", step="month", stepmode="backward"),
-                dict(count=3, label="3M", step="month", stepmode="backward"),
-                dict(count=6, label="6M", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
-                dict(step="all", label="MAX")
-            ]),
-            bgcolor="#1e293b", activecolor="#3b82f6", font=dict(color="white")
-        )
-    )
-
-    # תצוגה ראשונית ל-3 חודשים
-    end_date = data.index[-1]
-    start_date = end_date - timedelta(days=90)
-    fig.update_xaxes(range=[start_date, end_date], xaxis_rangeslider_visible=False)
-    fig.update_layout(height=700, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    fig.update_layout(height=650, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+    fig.update_xaxes(range=[start_date, end_date])
     
     st.plotly_chart(fig, use_container_width=True)
 
-    # נתונים פונדמנטליים
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Price</div><div style="font-size:20px; font-weight:bold;">${data["Close"].iloc[-1]:.2f}</div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Market Cap</div><div style="font-size:20px; font-weight:bold;">{info.get("marketCap",0)/1e9:.1f}B</div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="metric-card"><div style="color:#94a3b8">Short %</div><div style="font-size:20px; font-weight:bold; color:#ff4b4b;">{info.get("shortPercentOfFloat",0)*100:.1f}%</div></div>', unsafe_allow_html=True)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div>Price</div><div class="metric-value">${data["Close"].iloc[-1]:.2f}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div>P/E</div><div class="metric-value">{fmt(info.get("trailingPE"))}</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card"><div>Market Cap</div><div class="metric-value">{fmt(info.get("marketCap",0)/1e9)}B</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><div>Short %</div><div class="metric-value" style="color:#ff4b4b;">{fmt(info.get("shortPercentOfFloat"), True)}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div>Target</div><div class="metric-value">${fmt(info.get("targetMeanPrice"))}</div></div>', unsafe_allow_html=True)
+        st.link_button(f"🔍 Fintel", f"https://fintel.io/so/us/{ticker.lower()}")
 
-    st.write("")
-    st.link_button(f"🔍 Analysis for {ticker}", f"https://fintel.io/so/us/{ticker.lower()}")
-    st.markdown(f'<div style="background:rgba(255,255,255,0.03); padding:20px; border-radius:12px; text-align:left; direction:ltr;">{info.get("longBusinessSummary", "No data.")}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="company-info-box">{info.get("longBusinessSummary", "No data available.")}</div>', unsafe_allow_html=True)
 else:
-    st.info("Still connecting to data source... If this takes more than 10 seconds, try typing AAPL and Enter.")
+    st.error(f"Waiting for markets... Try refreshing or enter a different ticker (like AAPL).")
