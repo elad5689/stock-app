@@ -89,6 +89,7 @@ if not data.empty and len(data) > 10:
             range=[start_view, last_date],
             rangeselector=dict(
                 buttons=list([
+                    dict(count=5, label="5D", step="day", stepmode="backward"), # כפתור 5 ימים חדש
                     dict(count=1, label="1M", step="month", stepmode="backward"),
                     dict(count=3, label="3M", step="month", stepmode="backward"),
                     dict(count=6, label="6M", step="month", stepmode="backward"),
@@ -97,10 +98,10 @@ if not data.empty and len(data) > 10:
                 ]),
                 bgcolor="#0f172a", activecolor="#3b82f6", font=dict(color="white")
             ),
-            tickfont=dict(color="white") # טקסט ציר זמן בלבן
+            tickfont=dict(color="white")
         )
 
-        fig.update_yaxes(gridcolor='#1e293b', tickfont=dict(color="white")) # טקסט ציר מחיר בלבן
+        fig.update_yaxes(gridcolor='#1e293b', tickfont=dict(color="white"))
 
         fig.update_layout(
             height=700, 
@@ -108,8 +109,8 @@ if not data.empty and len(data) > 10:
             paper_bgcolor='rgba(0,0,0,0)', 
             plot_bgcolor='rgba(0,0,0,0)', 
             xaxis_rangeslider_visible=False,
-            legend=dict(font=dict(color="white")), # <--- שינוי צבע טקסט המקרא ללבן
-            font=dict(color="white") # <--- שינוי צבע פונט כללי בגרף ללבן
+            legend=dict(font=dict(color="white")),
+            font=dict(color="white")
         )
         st.plotly_chart(fig, use_container_width=True)
 
